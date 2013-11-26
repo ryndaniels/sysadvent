@@ -14,12 +14,27 @@ The upgrade process starts by replacing the existing mongo binaries with the shi
 
 #### A Detour, Perhaps.
 
+Since upgrading requires restarting all your `mongod` instances anyways, it can be a good excuse to do any tuning or make other adjustments that require such a restart. In our case, we realized that our disk readahead settings weren't optimal (MongoDB, Inc. recommends that [EC2 users use a readahead value of 32](http://docs.mongodb.org/manual/administration/production-notes/#ec2)) so we deployed a fix for that in Chef before continuing with the process, to cut down on the number of `mongod` restarts needed.
 
-(make sure readahead is set properly)
-(if applicable: disable balancer)
-on one worker: mongos --configsvr=<list> --upgrade
-restart config servers in reverse order
-tail mongos logs to make sure all is not fucked
+Also, if you are running the balancer, now is a good time to stop it.
+```mongos> sh.setBalancerState(false)
+mongos> sh.getBalancerState()
+false
+mongos>```
+
+If the balancer is currently running a migration, it will wait for that chunk to finish before stopping. You may have to wait a few minutes for `sh.getBalancerState()` to return false before continuing.
+
+#### Upgrading the Config Servers
+
+Upgrading from Mongo 2.2 to 2.4 requires that you upgrade the config database servers, in order to update the metadata for the existing cluser. Before proceeding, make sure that all members of your cluster are running 2.2, not 2.0 or earlier. Watch out for 2.0 `mongos` processes as these will get in the way of upgrades as well. If you find any (hiding on a long-forgotten server in a corner of the data center somewhere), you'll need to wait at least 5 minutes after they have been stopped to continue. Once your cluster is entirely on 2.2, start a `mongos` 2.4 instance with the upgrade flag:
+
+```mongos --upgrade --configsvr=config1.example.com,config2.example.com,config3.example.com```
+
+If that `mongos` starts without errors, you can restart the `mongod` processes on your config servers one at a time, in the opposite order than how they were listed in the above command. The order above should be the same order that the rest of your mongos processes are running. It's important to make sure each config database process has restarted completely before moving onto the next one to make sure the configuration data stays in sync across the 3 servers. You may want to `tail -f` the mongos logs during this process to keep an eye out for any errors.
+
+#### Restarting ALL the Things!
+![Restart ALL the Mongos!](http://cdn.memegenerator.net/instances/500x/43326424.jpg)
+
 knife ssh service mongos restart
 restart secondaries
 restart arbiters

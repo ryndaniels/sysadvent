@@ -22,7 +22,7 @@ mongos> sh.getBalancerState()
 false
 mongos>```
 
-If the balancer is currently running a migration, it will wait for that chunk to finish before stopping. You may have to wait a few minutes for `sh.getBalancerState()` to return false before continuing.
+If the balancer is currently running a migration, it will wait for that chunk to finish before stopping. You may have to wait a few minutes for `sh.getBalancerState()` to return false before continuing. Also note that disabling (and later enabling) the balancer should only be done using a `mongos` connection as this will ensure that the changes are made using a two-phase commit, making sure that the changes are properly replicated to all config servers. Making this kind of change to the config database directly can lead to DifferConfig errors which can leave your cluster metadata read-only at best and invalid at worst.
 
 #### Upgrading the Config Servers
 
@@ -101,9 +101,4 @@ Once you have finished restarting the primary replica set members, verify your s
 
 ### Final Steps
 
-reload site apps: workers, web, api, push
-how to verify when downtime abbey is on
-(enable balancer)
-turn off downtime abbey, etc
-scotch
-
+Once you've verified that the upgrade has been successful, be sure to take care of any loose ends related to the maintenance, such as re-enabling alerts, ending any downtime windows, and re-enabling the balancer (if applicable). Assuming you were properly caffeinated, followed these steps, and paid attention to any errors Mongo may have helpfully provided, you should be the proud owner of a 2.4 sharded replica set. And if something went terribly terribly wrong, you did have [backups](http://docs.mongodb.org/manual/core/backups/), right?
